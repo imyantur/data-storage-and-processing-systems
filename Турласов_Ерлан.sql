@@ -200,10 +200,10 @@ SELECT
     pc.class_id,
     s.size_id
 FROM combos c
-LEFT JOIN stg_sales.brands         b  ON b.brand_name  = c.brand
-LEFT JOIN stg_sales.product_lines  l  ON l.line_name   = c.product_line
+LEFT JOIN stg_sales.brands b ON b.brand_name  = c.brand
+LEFT JOIN stg_sales.product_lines l ON l.line_name   = c.product_line
 LEFT JOIN stg_sales.product_classes pc ON pc.class_name = c.product_class
-LEFT JOIN stg_sales.product_sizes  s  ON s.size_name   = c.product_size;
+LEFT JOIN stg_sales.product_sizes s ON s.size_name   = c.product_size;
 
 
 
