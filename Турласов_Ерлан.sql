@@ -104,7 +104,7 @@ CREATE TABLE stg_sales_fact.transactions (
     product_id INT NOT NULL,
     customer_id INT NOT NULL,
     transaction_date DATE NOT NULL,
-    online_order BOOLEAN NOT NULL,
+    online_order BOOLEAN NULL,
     status_id INT NOT NULL,
     list_price NUMERIC(12,2) NOT NULL,
     standard_cost NUMERIC(12,2) NULL,
@@ -169,13 +169,13 @@ WHERE c.country IS NOT NULL;
 
 INSERT INTO stg_sales.states (state_code, country_id)
 SELECT DISTINCT
-  c.state,
-  co.country_id
+    c.state,
+    co.country_id
 FROM stg.customer c
 JOIN stg_sales.countries co
-  ON co.country_name = c.country
+    ON co.country_name = c.country
 WHERE c.state IS NOT NULL
-  AND c.country IS NOT NULL;
+    AND c.country IS NOT NULL;
 
 --Вставка в таблицы stg_sales_fact 
 --фикс некорректного названия таблицы и атрибута после импорта файла 
@@ -184,21 +184,21 @@ ALTER TABLE stg."transactions" RENAME TO transaction;
 ALTER TABLE stg.customer RENAME COLUMN "DOB" TO dob;
 
 WITH combos AS (
-  select DISTINCT
-    t.product_id AS source_product_id,   
-    t.brand,
-    t.product_line,
-    t.product_class,
-    t.product_size
-  FROM stg.transaction t
+    SELECT DISTINCT
+        t.product_id AS source_product_id,   
+        t.brand,
+        t.product_line,
+        t.product_class,
+        t.product_size
+    FROM stg.transaction t
 )
 INSERT INTO stg_sales_fact.products (source_product_id, brand_id, line_id, class_id, size_id)
 SELECT        
-  c.source_product_id::int,
-  b.brand_id,
-  l.line_id,
-  pc.class_id,
-  s.size_id
+    c.source_product_id::int,
+    b.brand_id,
+    l.line_id,
+    pc.class_id,
+    s.size_id
 FROM combos c
 LEFT JOIN stg_sales.brands         b  ON b.brand_name  = c.brand
 LEFT JOIN stg_sales.product_lines  l  ON l.line_name   = c.product_line
@@ -208,38 +208,38 @@ LEFT JOIN stg_sales.product_sizes  s  ON s.size_name   = c.product_size;
 
 
 INSERT INTO stg_sales_fact.customers (
-  customer_id, first_name, last_name, gender_id, dob, role_id, industry_id,
-  wealth_id, deceased_indicator, owns_car, address, postcode, state_id, property_valuation
+    customer_id, first_name, last_name, gender_id, dob, role_id, industry_id,
+    wealth_id, deceased_indicator, owns_car, address, postcode, state_id, property_valuation
 )
 SELECT
-  c.customer_id::int,
-  c.first_name,
-  c.last_name,
-  g.gender_id,
-  c.dob::date,
-  r.role_id,
-  i.industry_id,
-  w.wealth_id,
-  c.deceased_indicator,
-  c.owns_car,
-  c.address,
-  c.postcode::int,
-  s.state_id,
-  c.property_valuation::int
+    c.customer_id::int,
+    c.first_name,
+    c.last_name,
+    g.gender_id,
+    c.dob::date,
+    r.role_id,
+    i.industry_id,
+    w.wealth_id,
+    c.deceased_indicator,
+    c.owns_car,
+    c.address,
+    c.postcode::int,
+    s.state_id,
+    c.property_valuation::int
 FROM stg.customer c
 LEFT JOIN stg_sales.genders g
-	ON g.gender_code = c.gender
+    ON g.gender_code = c.gender
 LEFT JOIN stg_sales.job_roles r
-	ON r.job_title = c.job_title
+    ON r.job_title = c.job_title
 LEFT JOIN stg_sales.industries i
-	ON i.industry_name = c.job_industry_category
+    ON i.industry_name = c.job_industry_category
 LEFT JOIN stg_sales.wealth_segments w
-	ON w.wealth_name = c.wealth_segment
+    ON w.wealth_name = c.wealth_segment
 LEFT JOIN stg_sales.countries co
-	ON co.country_name = c.country
+    ON co.country_name = c.country
 LEFT JOIN stg_sales.states s
-	ON s.state_code = c.state
-		AND s.country_id = co.country_id;
+    ON s.state_code = c.state
+        AND s.country_id = co.country_id;
 
 
 INSERT INTO stg_sales_fact.transactions (
@@ -249,14 +249,30 @@ INSERT INTO stg_sales_fact.transactions (
 SELECT
     t.transaction_id::int,
     p.product_id::int,          
-    t.customer_id::int,
+    c.customer_id::int,
     t.transaction_date::date,
     t.online_order::bool,
     os.status_id::int,
     REPLACE(t.list_price::text, ',', '.')::numeric,
     REPLACE(t.standard_cost::text, ',', '.')::numeric
 FROM stg.transaction t
+LEFT JOIN stg_sales.brands b_t
+    ON b_t.brand_name = t.brand
+LEFT JOIN stg_sales.product_lines l_t
+    ON l_t.line_name = t.product_line
+LEFT JOIN stg_sales.product_classes pc_t
+    ON pc_t.class_name = t.product_class
+LEFT JOIN stg_sales.product_sizes s_t
+    ON s_t.size_name = t.product_size
 LEFT JOIN stg_sales_fact.products p
     ON p.source_product_id = t.product_id::int
+    AND (p.brand_id IS NOT DISTINCT FROM b_t.brand_id)
+    AND (p.line_id IS NOT DISTINCT FROM l_t.line_id)
+    AND (p.class_id IS NOT DISTINCT FROM pc_t.class_id)
+    AND (p.size_id IS NOT DISTINCT FROM s_t.size_id)
+LEFT JOIN stg_sales_fact.customers c
+    ON c.customer_id = t.customer_id::int
 LEFT JOIN stg_sales.order_statuses os 
-    ON os.status_name = t.order_status;
+    ON os.status_name = t.order_status
+WHERE c.customer_id IS NOT NULL;
+
